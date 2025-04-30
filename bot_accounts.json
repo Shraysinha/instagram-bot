@@ -3,8 +3,5 @@
     "name": "bot1",
     "session_b64": "${{ secrets.BOT1_SESSION }}"
   },
-  {
-    "name": "bot2",
-    "session_b64": "${{ secrets.BOT2_SESSION }}"
-  }
+ 
 ]
