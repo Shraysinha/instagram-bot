@@ -31,7 +31,7 @@ jobs:
     env:
       COMMENT_SOURCE_URL: ${{ secrets.COMMENT_SOURCE_URL }}
       BOT1_SESSION: ${{ secrets.BOT1_SESSION }}
-      BOT2_SESSION: ${{ secrets.BOT2_SESSION }}
+    
       # Add more bot session secrets here
 
     steps:
@@ -41,7 +41,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: "3.10"
+        python-version: "3.11"
 
     - name: Install dependencies
       run: |
