@@ -5,33 +5,46 @@ import os
 import base64
 import json
 
+# Load the comment source URL from environment variable
 COMMENT_SOURCE_URL = os.getenv("COMMENT_SOURCE_URL")
 
 def fetch_comments():
+    """Fetches a list of comments from the COMMENT_SOURCE_URL"""
     response = requests.get(COMMENT_SOURCE_URL)
     return [line.strip() for line in response.text.splitlines() if line.strip()]
 
 def load_target_users(path="target_users.txt"):
+    """Loads target Instagram usernames from a text file"""
     with open(path, "r") as f:
         return [line.strip() for line in f if line.strip()]
 
 def decode_session(b64_session):
+    """Decodes a base64-encoded session JSON string into a Python dict"""
     session_json = base64.b64decode(b64_session).decode()
     return json.loads(session_json)
 
 def load_bot_accounts(path="bot_accounts.json"):
+    """Loads bot accounts and retrieves session values from secrets"""
     with open(path, "r") as f:
         bots = json.load(f)
         for bot in bots:
-            bot["session_b64"] = os.getenv(bot["session_b64"].strip("${{ secrets. }}"))
+            # Extract secret name from string like "${{ secrets.BOT1_SESSION }}"
+            secret_template = bot["session_b64"]
+            secret_name = secret_template.replace("${{ secrets.", "").replace(" }}", "")
+            session_b64 = os.getenv(secret_name)
+
+            if not session_b64:
+                raise ValueError(f"Missing environment variable: {secret_name}")
+
+            bot["session_b64"] = session_b64
         return bots
 
 def login_with_session(session):
+    """Logs in using a decoded session object"""
     cl = Client()
     cl.load_settings(session)
     cl.login_by_sessionid(session["sessionid"])
     return cl
-
 
 def main():
     target_users = load_target_users()
@@ -41,8 +54,8 @@ def main():
     for bot in bot_accounts:
         print(f"\n🔐 Logging in as: {bot['name']}")
         try:
-            cl = login_with_session(decode_session(bot["session_b64"]))
-
+            session_data = decode_session(bot["session_b64"])
+            cl = login_with_session(session_data)
 
             for username in target_users:
                 try:
