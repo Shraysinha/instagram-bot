@@ -26,12 +26,12 @@ def load_bot_accounts(path="bot_accounts.json"):
             bot["session_b64"] = os.getenv(bot["session_b64"].strip("${{ secrets. }}"))
         return bots
 
-def login_with_session(b64_session):
-    session = decode_session(b64_session)
+def login_with_session(session):
     cl = Client()
     cl.load_settings(session)
     cl.login_by_sessionid(session["sessionid"])
     return cl
+
 
 def main():
     target_users = load_target_users()
@@ -41,7 +41,8 @@ def main():
     for bot in bot_accounts:
         print(f"\n🔐 Logging in as: {bot['name']}")
         try:
-            cl = login_with_session(bot["session_b64"])
+            cl = login_with_session(decode_session(bot["session_b64"]))
+
 
             for username in target_users:
                 try:
