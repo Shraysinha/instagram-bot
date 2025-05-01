@@ -24,7 +24,7 @@ def login_with_session_b64(session_b64):
         tmp_file.write(session_json)
         tmp_file_path = tmp_file.name
     cl.load_settings(tmp_file_path)
-    cl.get_timeline_feed()  # sanity check
+    cl.get_timeline_feed()  # sanity check to ensure session works
     return cl
 
 def run_bot(bot_name, session_b64, target_users, comments):
@@ -38,7 +38,11 @@ def run_bot(bot_name, session_b64, target_users, comments):
     for username in target_users:
         try:
             user_id = cl.user_id_from_username(username)
-            media = cl.user_medias(user_id, 1)[0]
+            media_list = cl.user_medias_v1(user_id, 1)
+            if not media_list:
+                print(f"⚠️ {bot_name}: No media found for {username}. Skipping.")
+                continue
+            media = media_list[0]
             cl.media_like(media.id)
             comment = random.choice(comments)
             cl.media_comment(media.id, comment)
