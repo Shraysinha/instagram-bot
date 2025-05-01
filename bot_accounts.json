@@ -1,7 +1,6 @@
 [
   {
-    "name": "bot1",
+    "name": "Bot1",
     "session_b64": "${{ secrets.BOT1_SESSION }}"
-  },
- 
+  }
 ]
