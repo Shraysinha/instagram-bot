@@ -1,75 +1,67 @@
 from instagrapi import Client
-import random
-import requests
 import os
 import base64
-import json
-
-# Load the comment source URL from environment variable
-COMMENT_SOURCE_URL = os.getenv("COMMENT_SOURCE_URL")
+import tempfile
+import requests
+import random
 
 def fetch_comments():
-    """Fetches a list of comments from the COMMENT_SOURCE_URL"""
-    response = requests.get(COMMENT_SOURCE_URL)
+    url = os.getenv("COMMENT_SOURCE_URL")
+    if not url:
+        raise ValueError("❌ COMMENT_SOURCE_URL environment variable not set.")
+    response = requests.get(url)
+    response.raise_for_status()
     return [line.strip() for line in response.text.splitlines() if line.strip()]
 
-def load_target_users(path="target_users.txt"):
-    """Loads target Instagram usernames from a text file"""
-    with open(path, "r") as f:
+def load_target_users(file_path="target_users.txt"):
+    with open(file_path, "r") as f:
         return [line.strip() for line in f if line.strip()]
 
-def decode_session(b64_session):
-    """Decodes a base64-encoded session JSON string into a Python dict"""
-    session_json = base64.b64decode(b64_session).decode()
-    return json.loads(session_json)
-
-def load_bot_accounts(path="bot_accounts.json"):
-    """Loads bot accounts and retrieves session values from secrets"""
-    with open(path, "r") as f:
-        bots = json.load(f)
-        for bot in bots:
-            # Extract secret name from string like "${{ secrets.BOT1_SESSION }}"
-            secret_template = bot["session_b64"]
-            secret_name = secret_template.replace("${{ secrets.", "").replace(" }}", "")
-            session_b64 = os.getenv(secret_name)
-
-            if not session_b64:
-                raise ValueError(f"Missing environment variable: {secret_name}")
-
-            bot["session_b64"] = session_b64
-        return bots
-
-def login_with_session(session):
-    """Logs in using a decoded session object"""
+def login_with_session_b64(session_b64):
+    session_json = base64.b64decode(session_b64).decode()
     cl = Client()
-    cl.load_settings(session)
-    cl.login_by_sessionid(session["sessionid"])
+    with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tmp_file:
+        tmp_file.write(session_json)
+        tmp_file_path = tmp_file.name
+    cl.load_settings(tmp_file_path)
+    cl.get_timeline_feed()  # sanity check
     return cl
+
+def run_bot(bot_name, session_b64, target_users, comments):
+    print(f"\n🤖 Logging in as {bot_name}...")
+    try:
+        cl = login_with_session_b64(session_b64)
+    except Exception as e:
+        print(f"❌ Failed to login as {bot_name}: {e}")
+        return
+
+    for username in target_users:
+        try:
+            user_id = cl.user_id_from_username(username)
+            media = cl.user_medias(user_id, 1)[0]
+            cl.media_like(media.id)
+            comment = random.choice(comments)
+            cl.media_comment(media.id, comment)
+            print(f"✅ {bot_name} → {username}: {comment}")
+        except Exception as e:
+            print(f"❌ {bot_name} failed on {username}: {e}")
 
 def main():
     target_users = load_target_users()
     comments = fetch_comments()
-    bot_accounts = load_bot_accounts()
 
-    for bot in bot_accounts:
-        print(f"\n🔐 Logging in as: {bot['name']}")
-        try:
-            session_data = decode_session(bot["session_b64"])
-            cl = login_with_session(session_data)
+    bot_sessions = {
+        name: value
+        for name, value in os.environ.items()
+        if name.startswith("BOT") and name.endswith("_SESSION")
+    }
 
-            for username in target_users:
-                try:
-                    user_id = cl.user_id_from_username(username)
-                    media = cl.user_medias(user_id, 1)[0]
+    if not bot_sessions:
+        print("❌ No bot sessions found in environment variables (e.g., BOT1_SESSION).")
+        return
 
-                    cl.media_like(media.id)
-                    comment = random.choice(comments)
-                    cl.media_comment(media.id, comment)
-                    print(f"✅ [{bot['name']}] liked & commented on {username}: {comment}")
-                except Exception as e:
-                    print(f"❌ [{bot['name']}] Failed for {username}: {e}")
-        except Exception as e:
-            print(f"❌ Could not log in as {bot['name']}: {e}")
+    for bot_name, session_b64 in bot_sessions.items():
+        run_bot(bot_name, session_b64, target_users, comments)
 
 if __name__ == "__main__":
     main()
